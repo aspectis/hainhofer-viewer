@@ -6,12 +6,12 @@
 				<li v-for="file in $parent.manifest.files" :key="file.url">
 					<a class="viewer-download_link" :href="file.url" download>
 						<div class="viewer-download_icon">
-							<IconPdf v-if="file.url.substr(-4) === '.pdf'" decorative/>
-							<IconTxt v-else-if="file.url.substr(-4) === '.txt'" decorative/>
-							<IconXml v-else-if="file.url.substr(-4) === '.xml'" decorative/>
-							<IconFile v-else decorative/>
+							<IconPdf v-if="file.url.substr(-4) === '.pdf'" title/>
+							<IconTxt v-else-if="file.url.substr(-4) === '.txt'" title/>
+							<IconXml v-else-if="file.url.substr(-4) === '.xml'" title/>
+							<IconFile v-else title/>
 						</div>
-						{{ file.type }}
+						{{file.type}}
 					</a>
 				</li>
 			</ul>
@@ -32,7 +32,7 @@
 					<div class="viewer-download_icon">
 						<IconImage title="JPEG"/>
 					</div>
-					{{ canvas.label }}
+					{{canvas.label}}
 				</a>
 			</li>
 		</ul>
@@ -44,7 +44,7 @@
 					<div class="viewer-download_icon">
 						<IconExternal title="Externer Link"/>
 					</div>
-					{{ canvas.label }}
+					{{canvas.label}}
 				</a>
 			</li>
 		</ul>
@@ -56,7 +56,7 @@ import IconExternal from 'vue-material-design-icons/OpenInNew'
 import IconFile from 'vue-material-design-icons/FileOutline'
 import IconImage from 'vue-material-design-icons/ImageOutline'
 import IconTxt from 'vue-material-design-icons/FileDocumentOutline'
-import IconPdf from 'vue-material-design-icons/FilePdfOutline'
+import IconPdf from 'vue-material-design-icons/FilePdfBox'
 import IconXml from 'vue-material-design-icons/Xml'
 
 export default {

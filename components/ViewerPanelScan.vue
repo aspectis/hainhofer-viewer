@@ -49,9 +49,9 @@
 				<div class="viewer-scan_filter-popup" v-show="filtersVisible">
 					<p>
 						<label for="viewer-scan_brightness">
-							<IconBrightness class="-light"/>
+							<IconBrightness class="-light" title/>
 							Helligkeit:
-							{{ Math.round(($parent.params.filters.brightness || 1) * 100) }}&nbsp;%
+							{{Math.round(($parent.params.filters.brightness || 1) * 100)}}&nbsp;%
 						</label>
 						<input
 							class="viewer-scan_range"
@@ -67,9 +67,9 @@
 					</p>
 					<p>
 						<label for="viewer-scan_contrast">
-							<IconContrast class="-light"/>
+							<IconContrast class="-light" title/>
 							Kontrast:
-							{{ Math.round(($parent.params.filters.contrast || 1) * 100) }}&nbsp;%
+							{{Math.round(($parent.params.filters.contrast || 1) * 100)}}&nbsp;%
 						</label>
 						<input
 							class="viewer-scan_range"
@@ -84,9 +84,9 @@
 					</p>
 					<p>
 						<label for="viewer-scan_saturation">
-							<IconPalette class="-light"/>
+							<IconPalette class="-light" title/>
 							Sättigung:
-							{{ Math.round(saturation * 100) }}&nbsp;%
+							{{Math.round(saturation * 100)}}&nbsp;%
 						</label>
 						<input
 							class="viewer-scan_range"
@@ -105,7 +105,7 @@
 							:disabled="!filtersActive"
 							@click="resetFilters"
 						>
-							<IconBackupRestore/>
+							<IconBackupRestore title/>
 							Zurücksetzen
 						</button>
 					</p>
@@ -132,13 +132,14 @@ import keyboard from '../mixins/keyboard'
 import pagination from '../mixins/pagination'
 
 // Custom-build OpenSeadragon. Order is important!
-require('../openseadragon/src/openseadragon')
+window.OpenSeadragon = require('../openseadragon/src/openseadragon')
 
 require('../openseadragon/src/controldock')
 require('../openseadragon/src/eventsource')
 
 require('../openseadragon/src/tilesource')
 
+require('../openseadragon/src/iiiftilesource')
 require('../openseadragon/src/imagetilesource')
 
 require('../openseadragon/src/drawer')
@@ -147,6 +148,7 @@ require('../openseadragon/src/mousetracker')
 require('../openseadragon/src/placement')
 require('../openseadragon/src/point')
 require('../openseadragon/src/spring')
+require('../openseadragon/src/strings') // TODO: Remove with new OSD version?
 require('../openseadragon/src/tile')
 require('../openseadragon/src/tilecache')
 require('../openseadragon/src/tiledimage')
@@ -187,9 +189,11 @@ export default {
 		cssFiltersSupported () {
 			// https://raw.githubusercontent.com/Modernizr/Modernizr/master/feature-detects/css/filters.js
 			const el = document.createElement('a')
-			el.style.cssText = vendorPrefixes.join('filter:blur(2px);')
+			const css = 'filter:blur(2px);'
+			el.style.cssText = vendorPrefixes.reduce((acc, prefix) => acc + prefix + css, css)
+
 			// https://github.com/Modernizr/Modernizr/issues/615
-			// documentMode is needed for false positives in oldIE, please see issue above
+			// documentMode is needed for false positives in oldIE, see issue above
 			return !!el.style.length &&
 					((document.documentMode === undefined || document.documentMode > 9))
 		},
@@ -334,6 +338,7 @@ export default {
 
 			this.viewer = window.OpenSeadragon({
 				animationTime: 0.4,
+				autoResize: true, // TODO: Disable only when viewer is hidden?
 				id: 'viewer-scan_image',
 				immediateRender: this.$parent.options.immediateRender,
 				preload: !this.$parent.isMobile(),
@@ -343,7 +348,7 @@ export default {
 				showZoomControl: false,
 				tileSources,
 				visibilityRatio: 0.2,
-				maxZoomLevel: 2,
+				// maxZoomLevel: 2,
 			})
 
 			this.viewer.gestureSettingsMouse.clickToZoom = false
@@ -388,28 +393,51 @@ export default {
 			})
 
 			this.viewer.addHandler('tile-load-failed', (error) => {
-				this.$parent.error = `Error loading image: ${error.message}`
+				this.$parent.error = `Bild kann nicht geladen werden: ${error.message}`
 			})
 		},
 		loadImageInfo () {
+			const infoPromises = []
 			this.$parent.params.pages.forEach((page) => {
-				if (page < 1 || this.tileSources[page]) return
+				if (page < 1 || this.tileSources[page]) {
+					return
+				}
 
-				// Image URL missing for this page
-				if (!this.$parent.canvases[page - 1].image_url) return
-
-				this.$parent.$emit('update:loading', this.$parent.loading + 1)
-
-				// TODO: Maybe allow multiple resolutions, see https://openseadragon.github.io/examples/tilesource-custom/
-				this.tileSources[page] = {
-					type: 'image',
-					url: this.$parent.canvases[page - 1].image_url,
-					buildPyramid: false,
-					width: 1, // Can be any value, but must be set for multi-page view
+				const { resource } = this.$parent.iiifCanvases[page - 1].images[0]
+				if (resource.service) {
+					const id = resource.service['@id']
+					const infoUrl = `${id}${id.slice(-1) === '/' ? '' : '/'}info.json`
+					infoPromises.push(this.$http.get(infoUrl).then((response) => ({ ...response, page }), (error) => {
+						let status
+						if (error.response && error.response.statusText) {
+							status = error.response.statusText
+						} else if (error.message) {
+							status = error.message
+						}
+						this.$parent.error = `Infodatei für Seite ${page} kann nicht geladen werden${status ? `: ${status}` : ''}`
+					}))
+				} else {
+					this.tileSources[page] = {
+						type: 'image',
+						url: resource['@id'],
+						width: resource.width,
+						height: resource.height,
+					}
 				}
 			})
 
-			this.initViewer()
+			if (infoPromises.length) {
+				Promise.all(infoPromises).then((responses) => {
+					responses.forEach((response) => {
+						if (response) {
+							this.tileSources[response.page] = response.data
+						}
+					})
+					this.initViewer()
+				})
+			} else {
+				this.initViewer()
+			}
 		},
 		propagateKeyPress (event) {
 			if (event.target.className.indexOf('openseadragon') === 0) return
@@ -476,8 +504,9 @@ export default {
 
 			const { image } = this.$refs
 			const filterString = filters.join(' ')
+			const css = `filter:${filterString};`
 
-			image.style.cssText = vendorPrefixes.join(`filter:${filterString};`)
+			image.style.cssText = vendorPrefixes.reduce((acc, prefix) => acc + prefix + css, css)
 		},
 		zoomIn () {
 			this.viewer.viewport.zoomBy(this.zoomFactor)

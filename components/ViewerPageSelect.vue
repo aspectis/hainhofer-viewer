@@ -6,8 +6,8 @@
 			@click="toggleDropdown"
 		>
 			<span class="viewer-sr-only">Aktuelle Seite</span>
-			{{ $parent.$parent.canvases[$parent.$parent.params.pages[0] ? $parent.$parent.params.pages[0] - 1 : 0].label }}
-			{{ $parent.$parent.params.pages.length > 1 ? '+' : '' }}
+			{{$parent.$parent.canvases[$parent.$parent.params.pages[0] ? $parent.$parent.params.pages[0] - 1 : 0].label}}
+			{{$parent.$parent.params.pages.length > 1 ? '+' : ''}}
 		</button>
 
 		<div
@@ -39,7 +39,7 @@
 					:key="canvas.page"
 					@click="setPage(canvas.page)"
 				>
-					{{ canvas.label }}
+					{{canvas.label}}
 				</li>
 			</ol>
 		</div>

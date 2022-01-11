@@ -7,7 +7,7 @@ The document viewer of the <a href="https://hainhofer.hab.de">Philipp Hainhofer 
 
 ## Requirements
 
-<a href="https://github.com/openseadragon/openseadragon/releases/tag/v2.4.0">The source files of OpenSeadragon v2.4.0</a> must be available in the `openseadragon` directory. The OpenSeadragon npm package does not include the required files.
+<a href="https://github.com/openseadragon/openseadragon/releases/tag/v2.4.2">The source files of OpenSeadragon v2.4.2</a> must be available in the `openseadragon` directory. The OpenSeadragon npm package does not include the required files.
 
 
 ## Usage
@@ -20,6 +20,7 @@ Import `Viewer.vue`, which in turn imports all other components as well as OpenS
 Only the `manifestUrl` is required.
 
 - `cache` (object): A simple key-value store for caching data from the API.
+- `getWithCache`: A function accepting a URL and any value which returns the requested resource.
 - `handleHtml` (function): A function that is applied to the HTML of every page's fulltext. The only parameter is the HTML string.
 - `loading` (number): This variable gets incremented on every load event and decremented (or set to `0`) when loading finishes. Must be used with the `sync` modifier.
 - `manifestUrl` (string): The URL of the manifest to load.
@@ -27,7 +28,6 @@ Only the `manifestUrl` is required.
 
 ## Events
 
-- `addToCache`: Emits a `key` (string) and a `value` (any) to be handled by the app's caching function.
 - `setTitle`: Emits a string once the manifest is loaded, containing the document title.
 - `updateCustomCss`: Emits the manifest's custom CSS string (or `null`) on load.
 

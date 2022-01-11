@@ -7,11 +7,7 @@ export default {
 				return true
 			}
 
-			if (this.$parent.startingVerso) {
-				return pages.length === 2 && (pages[0] % 2 !== 1 || pages[1] !== pages[0] + 1) && pages[1] > 0
-			} else {
-				return pages.length === 2 && (pages[0] % 2 !== 0 || pages[1] !== pages[0] + 1) && pages[1] > 0
-			}
+			return pages.length === 2 && pages[0] > 0 && pages[1] > 0 && pages[0] + 1 !== pages[1]
 		},
 		isFirstPage () {
 			return this.$parent.params.pages[0] < 2
@@ -32,7 +28,7 @@ export default {
 		goToNextPage () {
 			const { pages } = this.$parent.params
 			let page = pages[0] + 1
-			if (pages.length > 1 && page < this.$parent.pageCount) {
+			if (pages.length === 2 && page < this.$parent.pageCount && pages[1] > 0) {
 				page += 1
 			}
 			this.$parent.setPage(page)
@@ -40,7 +36,11 @@ export default {
 		goToPreviousPage () {
 			const { pages } = this.$parent.params
 			let page = pages[0] - 1
-			if (pages.length > 1 && page > 0) {
+			const canvases = this.$parent.canvases
+			if (pages.length === 2 && page > 0 &&
+				(!canvases[page - 2] || canvases[page - 2].id.substr(-1) === 'v') &&
+				canvases[page - 1].id.substr(-1) === 'r'
+			) {
 				page -= 1
 			}
 			this.$parent.setPage(page)

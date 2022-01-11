@@ -15,7 +15,7 @@
 			>
 				<img alt="" :src="item.imgUrl">
 				<span class="viewer-thumbnails_page">
-					{{ item.label }}
+					{{item.label}}
 				</span>
 			</a>
 		</div>
@@ -109,11 +109,28 @@ export default {
 
 			const items = []
 			for (let i = startPage - 1; i < endPage; i += 1) {
-				items.push({
-					label: this.$parent.canvases[i].label,
-					imgUrl: this.$parent.canvases[i].thumbnail_url,
-					page: i + 1,
-				})
+				const { resource } = this.$parent.iiifCanvases[i].images[0]
+				if (resource.service) {
+					const quality = (
+						resource.service['@context'] === 'http://iiif.io/api/image/2/context.json'
+							? 'default'
+							: 'native'
+					)
+					const id = resource.service['@id']
+					items.push({
+						// label: this.$root.convertValueToArray(this.$root.canvases[i].label)[0],
+						label: this.$parent.canvases[i].label,
+						imgUrl: `${id}${id.slice(-1) === '/' ? '' : '/'}full/${this.thumbnailWidth},/0/${quality}.jpg`,
+						page: i + 1,
+					})
+				} else {
+					items.push({
+						// label: this.$root.convertValueToArray(this.$root.canvases[i].label)[0],
+						label: this.$parent.canvases[i].label,
+						imgUrl: resource['@id'],
+						page: i + 1,
+					})
+				}
 			}
 			this.items = items
 

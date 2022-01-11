@@ -47,6 +47,11 @@ export default {
 				return
 			}
 
+			// Handle internal page links in permalink format
+			if (href.indexOf('#fol') > -1) {
+				return
+			}
+
 			this.$router.push(href.replace(host, ''))
 			event.preventDefault()
 		})

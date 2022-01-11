@@ -1,8 +1,10 @@
 <template>
-	<div class="viewer-app">
-		<ViewerHeader v-if="manifest"/>
+	<div class="viewer-app" :class="{ '-full-width': params.fullWidth }">
+		<ViewerHeader v-if="manifest && iiifCanvases"/>
 
-		<div v-if="manifest" class="viewer-app_main">
+		<ViewerPagebar v-if="manifest && iiifCanvases" v-bind="{ canvases, pageCount, params, setPage }"/>
+
+		<div v-if="manifest && iiifCanvases" class="viewer-app_main">
 			<ViewerPanelScan/>
 			<ViewerPanelFulltext v-show="params.view === 'fulltext'"/>
 			<ViewerPanelThumbnails v-show="params.view === 'thumbnails'"/>
@@ -11,15 +13,20 @@
 			<ViewerPanelDownload v-show="params.view === 'download'"/>
 			<ViewerPanelHelp v-show="params.view === 'help'"/>
 		</div>
+
+		<div v-if="error" class="viewer-app_error">
+			<button @click="error = ''" aria-label="Schließen">&times;</button>
+			Fehler: {{error}}
+		</div>
 	</div>
 </template>
 
 <script>
-
 import './directives/click-outside'
-import './polyfills/findIndex'
+import './polyfills/findIndex' // TODO: This is only required for IE11. Remove?
 
 import ViewerHeader from './components/ViewerHeader'
+import ViewerPagebar from './components/ViewerPagebar'
 import ViewerPanelDownload from './components/ViewerPanelDownload'
 import ViewerPanelFulltext from './components/ViewerPanelFulltext'
 import ViewerPanelHelp from './components/ViewerPanelHelp'
@@ -31,6 +38,7 @@ import ViewerPanelThumbnails from './components/ViewerPanelThumbnails'
 export default {
 	components: {
 		ViewerHeader,
+		ViewerPagebar,
 		ViewerPanelDownload,
 		ViewerPanelHelp,
 		ViewerPanelInfo,
@@ -39,9 +47,21 @@ export default {
 		ViewerPanelThumbnails,
 		ViewerPanelFulltext,
 	},
+	props: {
+		getWithCache: {
+			type: Function,
+		},
+		handleHtml: {
+			type: Function,
+			default: (html) => html,
+		},
+		loading: Number,
+		manifestUrl: String,
+	},
 	data () {
 		return {
 			error: '',
+			iiif: null,
 			manifest: null,
 			messages: null,
 			options: {
@@ -58,28 +78,42 @@ export default {
 				queryParamName: 'v',
 				title: '',
 			},
+			pageMapping: null,
 			params: {},
 			paramsTimer: null,
 		}
 	},
-	props: {
-		cache: Object,
-		handleHtml: {
-			type: Function,
-			default: (html) => html,
-		},
-		loading: Number,
-		manifestUrl: String,
-	},
 	computed: {
+		iiifCanvases () {
+			if (!this.iiif || !this.pageMapping) {
+				return null
+			}
+
+			const mappings = this.pageMapping.trim().split(/\n/g).map(line => line.trim().split(','))
+
+			const filteredIiifCanvases = []
+			for (const mapping of mappings) {
+				const canvas = this.iiif.sequences[0].canvases.find(iiifCanvas => {
+					const id = iiifCanvas['@id']
+					return id.substr(id.lastIndexOf('/') + 1) === mapping[1]
+				})
+				if (canvas) {
+					filteredIiifCanvases.push(canvas)
+				}
+			}
+
+			if (filteredIiifCanvases.length !== this.canvases.length) {
+				// eslint-disable-next-line vue/no-side-effects-in-computed-properties
+				this.error = 'Seiten aus IIIF-Manifest konnten nicht vollständig zugeordnet werden'
+			}
+
+			return filteredIiifCanvases
+		},
 		canvases () {
 			return this.manifest.pages
 		},
 		pageCount () {
 			return this.manifest.pages.length
-		},
-		startingVerso () {
-			return this.canvases[0].id.substr(-1) === 'v'
 		},
 		visibleCanvases () {
 			const visibleCanvases = []
@@ -94,7 +128,7 @@ export default {
 		},
 	},
 	watch: {
-		// Cannot use :class because responsive classes are added via classList below
+		// NOTE: Cannot use :class because responsive classes are added via classList below
 		'params.view': function (newView, oldView) {
 			this.$el.classList.remove(`-${oldView}`)
 			this.$el.classList.add(`-${newView}`)
@@ -104,7 +138,7 @@ export default {
 		getParams () {
 			let params = {}
 			try {
-				let paramsString = this.getQueryParam(this.options.queryParamName) || ''
+				const paramsString = this.getQueryParam(this.options.queryParamName) || ''
 				params = JSON.parse(paramsString) || {}
 			} catch (e) {
 				// Nothing to do here
@@ -120,12 +154,13 @@ export default {
 			if (this.isValidPagesArray(params.pages)) {
 				pages = params.pages
 			} else {
-				if (params.pages) this.error = 'Invalid pages, reset to first page'
+				if (params.pages) this.error = 'Ungültige Seiten, zeige erste Seite'
 				pages = [1]
 			}
 
 			return {
 				filters: params.filters || {},
+				fullWidth: params.fullWidth,
 				pages,
 				panX: parseFloat(params.panX) || null,
 				panY: parseFloat(params.panY) || null,
@@ -170,9 +205,7 @@ export default {
 			if ((new Set(pages)).size !== pages.length) return false
 
 			for (let i = 0; i < pages.length; i += 1) {
-				if (
-					// eslint-disable-next-line no-restricted-globals
-					isNaN(pages[i]) ||
+				if (isNaN(pages[i]) ||
 					(i > 0 && pages[i] > 0 && pages[i] <= pages[i - 1]) ||
 					pages[i] < 0 ||
 					pages[i] > this.pageCount
@@ -183,15 +216,23 @@ export default {
 		},
 		setPage (page) {
 			const { pages } = this.params
-			if (this.startingVerso && pages[0] % 2 === 1 && (pages[1] === pages[0] + 1 || pages[1] === 0)) {
-				const newPage = (page % 2 === 0 ? page - 1 : page)
-				this.updateParams({ pages: [newPage, newPage === this.pageCount ? 0 : newPage + 1] })
-				return
-			} else if (pages[0] % 2 === 0 && (pages[1] === pages[0] + 1 || pages[1] === 0)) {
-				const newPage = (page % 2 === 1 ? page - 1 : page)
-				this.updateParams({ pages: [newPage, newPage === this.pageCount ? 0 : newPage + 1] })
+
+			if (pages.length === 2) {
+				let page2 = page + 1 > this.pageCount ? 0 : page + 1
+
+				if (this.canvases[page - 1] && this.canvases[page - 1].id.substr(-1) !== 'v') {
+					page2 = 0
+				}
+
+				if (page === 1 && page2 === 0) {
+					page = 0
+					page2 = 1
+				}
+
+				this.updateParams({ pages: [page, page2] })
 				return
 			}
+
 			this.updateParams({ pages: [page] })
 		},
 		setParams () {
@@ -219,8 +260,7 @@ export default {
 				const storedParams = {}
 				Object.keys(this.params).forEach((key) => {
 					const param = this.params[key]
-					if (
-						param === null ||
+					if (param === null ||
 						(key === 'pages' && param.length < 2 && param[0] < 2) ||
 						(typeof param === 'object' && !Object.keys(param).length)
 					) {
@@ -232,7 +272,7 @@ export default {
 
 				const regex = new RegExp(`([?&])${this.options.queryParamName}=.*?(&|$)`)
 
-				let paramsString = JSON.stringify(storedParams)
+				const paramsString = JSON.stringify(storedParams)
 				const viewParams = `${this.options.queryParamName}=${paramsString}`
 				const uri = window.location.href
 				const newUrl = uri.match(regex)
@@ -248,24 +288,23 @@ export default {
 			}, 100)
 		},
 	},
-	mounted () {
+	async mounted () {
 		// Set current breakpoint as classes on container element for use in CSS
 		window.addEventListener('resize', this.updateBreakpoint)
 		this.updateBreakpoint()
 
 		document.body.classList.add('-viewer')
 
-		// Load manifest
-		if (this.cache[this.manifestUrl]) {
-			this.manifest = this.cache[this.manifestUrl]
-			this.init()
+		this.manifest = await this.getWithCache(this.manifestUrl)
+
+		if (this.manifest.iiif_manifest) {
+			this.iiif = await this.getWithCache(this.manifest.iiif_manifest, '', true)
+			this.pageMapping = await this.getWithCache(this.manifest.page_mapping, '', true)
 		} else {
-			this.$http.get(this.manifestUrl).then((response) => {
-				this.manifest = response.data
-				this.$emit('addToCache', this.manifestUrl, this.manifest)
-				this.init()
-			})
+			this.error = 'IIIF-Manifest-URL fehlt'
 		}
+
+		this.init()
 	},
 	beforeDestroy () {
 		window.removeEventListener('resize', this.updateBreakpoint)

@@ -132,9 +132,8 @@
 			</tr>
 		</table>
 
-		<h3>Software-Lizenz</h3>
-		<p>
-			Der Viewer basiert auf <a href="https://github.com/tify-iiif-viewer/tify">TIFY</a>, sein Quelltext ist <a href="https://github.com/aspectis/hainhofer-viewer">unter der AGPL 3.0 veröffentlicht</a>.
+		<p class="small">
+			Der Viewer basiert auf <a href="https://github.com/tify-iiif-viewer/tify">TIFY</a> (&copy; 2017-2021 <a href="https://www.sub.uni-goettingen.de/">Universität Göttingen / Staats- und Universitätsbibliothek</a>), sein Quelltext ist <a href="https://github.com/aspectis/hainhofer-viewer">unter der AGPL 3.0 veröffentlicht</a>.
 		</p>
 	</section>
 </template>
